@@ -210,6 +210,26 @@ export default class Camera extends React.Component<PropsType> {
     return await CameraManager.takePicture(options, this._cameraHandle);
   }
 
+  async startPhotoSessionAsync(options?: PictureOptions) {
+    if (!options) {
+      options = {};
+    }
+    if (!options.quality) {
+      options.quality = 1;
+    }
+    return await CameraManager.startPhotoSession(options, this._cameraHandle);
+  }
+
+  async stopPhotoSessionAsync(options?: PictureOptions) {
+    if (!options) {
+      options = {};
+    }
+    if (!options.quality) {
+      options.quality = 1;
+    }
+    return await CameraManager.stopPhotoSession(options, this._cameraHandle);
+  }
+
   async getSupportedRatiosAsync() {
     if (Platform.OS === 'android') {
       return await CameraManager.getSupportedRatios(this._cameraHandle);

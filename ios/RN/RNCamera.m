@@ -6,12 +6,23 @@
 #import <React/RCTLog.h>
 #import <React/RCTUtils.h>
 #import <React/UIView+React.h>
+#import <AVFoundation/AVFoundation.h>
+#import <CoreImage/CoreImage.h>
 
-@interface RNCamera ()
+@interface RNCamera ()<AVCaptureVideoDataOutputSampleBufferDelegate>
+{
+    RCTPromiseResolveBlock _photoSessionItemResolve;
+    NSDictionary *_photoSessionOptions;
+    NSDictionary *_photoSessionItemOptions;
+}
 
 @property (nonatomic, weak) RCTBridge *bridge;
 
 @property (nonatomic, assign, getter=isSessionPaused) BOOL paused;
+
+@property (nonatomic, strong, readonly) dispatch_queue_t photoSessionQueue;
+
+@property (nonatomic, strong) AVCaptureVideoDataOutput *videoDataOutput;
 
 @property (nonatomic, strong) RCTPromiseResolveBlock videoRecordedResolve;
 @property (nonatomic, strong) RCTPromiseRejectBlock videoRecordedReject;
@@ -25,6 +36,8 @@
 @end
 
 @implementation RNCamera
+
+@synthesize photoSessionQueue = _photoSessionQueue;
 
 static NSDictionary *defaultFaceDetectorOptions = nil;
 
@@ -304,8 +317,127 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
     [_faceDetectorManager setClassificationsDetected:requestedClassifications];
 }
 
+- (void)setVideoDataOutput:(AVCaptureVideoDataOutput *)videoDataOutput
+{
+    if (videoDataOutput) {
+        if ([self.session canAddOutput:videoDataOutput]) {
+            _videoDataOutput = videoDataOutput;
+            [_videoDataOutput setSampleBufferDelegate:self
+                                                queue:self.photoSessionQueue];
+            [self.session addOutput:videoDataOutput];
+            [self checkVideoOrientation];
+            [[NSNotificationCenter defaultCenter] addObserver:self
+                                                     selector:@selector(checkVideoOrientation)
+                                                         name:UIDeviceOrientationDidChangeNotification
+                                                       object:nil];
+        } else if ([self.session.outputs containsObject:videoDataOutput]) {
+            _videoDataOutput = videoDataOutput;
+        } else {
+            _videoDataOutput = nil;
+        }
+    } else {
+        _videoDataOutput = nil;
+        [self.session removeOutput:_videoDataOutput];
+        [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                        name:UIDeviceOrientationDidChangeNotification
+                                                      object:nil];
+    }
+}
+
+- (void)dealloc
+{
+    self.videoDataOutput = nil;
+}
+
+- (AVCaptureVideoDataOutput *)sessionVideoDataOutput
+{
+    NSArray *outputs = self.session.outputs;
+    for (id output in outputs) {
+        if ([output isKindOfClass:[AVCaptureVideoDataOutput class]]) {
+            return output;
+        }
+    }
+    return nil;
+}
+
+- (void)checkVideoOrientation
+{
+    dispatch_async(dispatch_get_main_queue(), ^{
+        AVCaptureConnection *connection = [self.sessionVideoDataOutput connectionWithMediaType:AVMediaTypeVideo];
+        if ([connection isVideoOrientationSupported]) {
+            [connection setVideoOrientation:[RNCameraUtils videoOrientationForDeviceOrientation:[[UIDevice currentDevice] orientation]]];
+        }
+    });
+}
+
+- (dispatch_queue_t)photoSessionQueue
+{
+    if (!_photoSessionQueue) {
+        _photoSessionQueue = dispatch_queue_create("PHOTOSESSIONQUEUE", 0);
+    }
+    return _photoSessionQueue;
+}
+
+- (void)startPhotoSession:(NSDictionary *)options resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject
+{
+    NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
+    if (!_videoDataOutput) {
+        self.videoDataOutput = [AVCaptureVideoDataOutput new];
+        if (!_videoDataOutput) {
+            self.videoDataOutput = self.sessionVideoDataOutput;
+        }
+        if (self.videoDataOutput) {
+            response[@"status"] = @"New photo session started";
+        } else {
+            reject(@"-1", @"Could not start photo session", nil);
+            return;
+        }
+    } else {
+        response[@"status"] = @"Photo session already started";
+    }
+    resolve(response);
+}
+
+- (void)stopPhotoSession:(NSDictionary *)options resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject
+{
+    NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
+    if (_videoDataOutput) {
+        self.videoDataOutput = nil;
+        response[@"status"] = @"Photo session stopped";
+    } else {
+        response[@"status"] = @"No photo session to stop";
+    }
+    resolve(response);
+}
+
+- (void)captureOutput:(AVCaptureOutput *)output didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection
+{
+    if (_photoSessionItemResolve) {
+        RCTPromiseResolveBlock resolve = _photoSessionItemResolve;
+        _photoSessionItemResolve = nil;
+        CVImageBufferRef buffer = CMSampleBufferGetImageBuffer(sampleBuffer);
+        CIImage *ciImage = [CIImage imageWithCVImageBuffer:buffer];
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+            CIContext *context = [CIContext new];
+            CGImageRef cgImage = [context createCGImage:ciImage fromRect:ciImage.extent];
+            UIImage *image = [UIImage imageWithCGImage:cgImage];
+            NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
+            //NSData *imageData = UIImageJPEGRepresentation(image, 0.5);
+            NSData *imageData = UIImagePNGRepresentation(image);
+            response[@"base64"] = [imageData base64EncodedStringWithOptions:0];
+            resolve(response);
+        });
+    }
+}
+
 - (void)takePicture:(NSDictionary *)options resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject
 {
+    if (_videoDataOutput) {
+        _photoSessionItemResolve = resolve;
+        _photoSessionItemOptions = options;
+        return;
+    }
+    
     AVCaptureConnection *connection = [self.stillImageOutput connectionWithMediaType:AVMediaTypeVideo];
     [connection setVideoOrientation:[RNCameraUtils videoOrientationForDeviceOrientation:[[UIDevice currentDevice] orientation]]];
     [self.stillImageOutput captureStillImageAsynchronouslyFromConnection:connection completionHandler: ^(CMSampleBufferRef imageSampleBuffer, NSError *error) {
@@ -343,8 +475,6 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
             if ([options[@"base64"] boolValue]) {
                 response[@"base64"] = [takenImageData base64EncodedStringWithOptions:0];
             }
-
-            
             
             if ([options[@"exif"] boolValue]) {
                 int imageRotation;

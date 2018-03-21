@@ -182,6 +182,47 @@ RCT_CUSTOM_VIEW_PROPERTY(barCodeTypes, NSArray, RNCamera)
     [view setBarCodeTypes:[RCTConvert NSArray:json]];
 }
 
+RCT_EXPORT_METHOD(startPhotoSession:(NSDictionary *)options
+                  reactTag:(nonnull NSNumber *)reactTag
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(__unused RCTPromiseRejectBlock)reject)
+{
+#if TARGET_IPHONE_SIMULATOR
+    NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
+    resolve(response);
+#else
+    [self.bridge.uiManager addUIBlock:^(__unused RCTUIManager *uiManager, NSDictionary<NSNumber *, RNCamera *> *viewRegistry) {
+        RNCamera *view = viewRegistry[reactTag];
+        if (![view isKindOfClass:[RNCamera class]]) {
+            RCTLogError(@"Invalid view returned from registry, expecting RNCamera, got: %@", view);
+        } else {
+            [view startPhotoSession:options resolve:resolve reject:reject];
+        }
+    }];
+#endif
+}
+
+RCT_EXPORT_METHOD(stopPhotoSession:(NSDictionary *)options
+                  reactTag:(nonnull NSNumber *)reactTag
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(__unused RCTPromiseRejectBlock)reject)
+{
+#if TARGET_IPHONE_SIMULATOR
+    NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
+    resolve(response);
+#else
+    [self.bridge.uiManager addUIBlock:^(__unused RCTUIManager *uiManager, NSDictionary<NSNumber *, RNCamera *> *viewRegistry) {
+        RNCamera *view = viewRegistry[reactTag];
+        if (![view isKindOfClass:[RNCamera class]]) {
+            RCTLogError(@"Invalid view returned from registry, expecting RNCamera, got: %@", view);
+        } else {
+            [view stopPhotoSession:options resolve:resolve reject:reject];
+        }
+    }];
+#endif
+}
+
+
 RCT_REMAP_METHOD(takePicture,
                  options:(NSDictionary *)options
                  reactTag:(nonnull NSNumber *)reactTag

@@ -46,6 +46,7 @@
 		410701491ACB732B00C6AA39 /* RCTCameraManager.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = RCTCameraManager.h; sourceTree = "<group>"; };
 		4107014A1ACB732B00C6AA39 /* RCTCameraManager.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = RCTCameraManager.m; sourceTree = "<group>"; };
 		454EBCF31B5082DC00AD0F86 /* NSMutableDictionary+ImageMetadata.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = "NSMutableDictionary+ImageMetadata.m"; sourceTree = "<group>"; };
+		695E52EF206294EB00B79C68 /* RemoveFaceDetector.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = RemoveFaceDetector.sh; sourceTree = "<group>"; };
 		7103647920195C53009691D1 /* RNFaceDetectorManagerStub.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RNFaceDetectorManagerStub.h; sourceTree = "<group>"; };
 		7103647A20195C53009691D1 /* RNFaceDetectorManagerStub.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = RNFaceDetectorManagerStub.m; sourceTree = "<group>"; };
 		7147DBB12015319E003C59C3 /* RNFaceDetectorManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RNFaceDetectorManager.h; sourceTree = "<group>"; };
@@ -86,6 +87,7 @@
 		410701241ACB719800C6AA39 = {
 			isa = PBXGroup;
 			children = (
+				695E52EF206294EB00B79C68 /* RemoveFaceDetector.sh */,
 				7147DBB02015317E003C59C3 /* FaceDetector */,
 				714166162013E1B600EE9FCC /* RN */,
 				714166152013E19D00EE9FCC /* RCT */,
@@ -160,6 +162,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 410701411ACB723B00C6AA39 /* Build configuration list for PBXNativeTarget "RNCamera" */;
 			buildPhases = (
+				695E52F02062955E00B79C68 /* ShellScript */,
 				4107012B1ACB723B00C6AA39 /* Sources */,
 				4107012C1ACB723B00C6AA39 /* Frameworks */,
 				4107012D1ACB723B00C6AA39 /* CopyFiles */,
@@ -202,6 +205,22 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		695E52F02062955E00B79C68 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = $SRCROOT/RemoveFaceDetector.sh;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		4107012B1ACB723B00C6AA39 /* Sources */ = {

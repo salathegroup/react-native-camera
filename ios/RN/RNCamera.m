@@ -110,14 +110,12 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
 {
     [self insertSubview:view atIndex:atIndex + 1];
     [super insertReactSubview:view atIndex:atIndex];
-    return;
 }
 
 - (void)removeReactSubview:(UIView *)subview
 {
     [subview removeFromSuperview];
     [super removeReactSubview:subview];
-    return;
 }
 
 - (void)removeFromSuperview

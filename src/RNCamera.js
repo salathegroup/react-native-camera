@@ -210,6 +210,10 @@ export default class Camera extends React.Component<PropsType> {
     return await CameraManager.takePicture(options, this._cameraHandle);
   }
 
+  static photoSessionAvailable() {
+    return Platform.OS === 'ios';
+  }
+
   async startPhotoSessionAsync(options?: PictureOptions) {
     if (!options) {
       options = {};

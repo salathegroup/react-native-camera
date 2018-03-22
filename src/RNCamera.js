@@ -214,18 +214,12 @@ export default class Camera extends React.Component<PropsType> {
     if (!options) {
       options = {};
     }
-    if (!options.quality) {
-      options.quality = 1;
-    }
     return await CameraManager.startPhotoSession(options, this._cameraHandle);
   }
 
   async stopPhotoSessionAsync(options?: PictureOptions) {
     if (!options) {
       options = {};
-    }
-    if (!options.quality) {
-      options.quality = 1;
     }
     return await CameraManager.stopPhotoSession(options, this._cameraHandle);
   }

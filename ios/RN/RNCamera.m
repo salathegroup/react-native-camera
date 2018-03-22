@@ -12,17 +12,19 @@
 @interface RNCamera ()<AVCaptureVideoDataOutputSampleBufferDelegate>
 {
     RCTPromiseResolveBlock _photoSessionItemResolve;
+    RCTPromiseRejectBlock _photoSessionItemReject;
+    AVCaptureVideoDataOutput *_videoDataOutput;
     NSDictionary *_photoSessionOptions;
     NSDictionary *_photoSessionItemOptions;
+    BOOL _orientationObserverAdded;
+    NSDate *_inactiveTillDate;
 }
 
 @property (nonatomic, weak) RCTBridge *bridge;
 
 @property (nonatomic, assign, getter=isSessionPaused) BOOL paused;
 
-@property (nonatomic, strong, readonly) dispatch_queue_t photoSessionQueue;
-
-@property (nonatomic, strong) AVCaptureVideoDataOutput *videoDataOutput;
+@property (nonatomic, assign, getter=isPhotoSessionActive) BOOL photoSessionActive;
 
 @property (nonatomic, strong) RCTPromiseResolveBlock videoRecordedResolve;
 @property (nonatomic, strong) RCTPromiseRejectBlock videoRecordedReject;
@@ -36,8 +38,6 @@
 @end
 
 @implementation RNCamera
-
-@synthesize photoSessionQueue = _photoSessionQueue;
 
 static NSDictionary *defaultFaceDetectorOptions = nil;
 
@@ -104,6 +104,7 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
     self.previewLayer.frame = self.bounds;
     [self setBackgroundColor:[UIColor blackColor]];
     [self.layer insertSublayer:self.previewLayer atIndex:0];
+    [self inactivatePhotoSessionForDuration:.5];
 }
 
 - (void)insertReactSubview:(UIView *)view atIndex:(NSInteger)atIndex
@@ -315,124 +316,190 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
     [_faceDetectorManager setClassificationsDetected:requestedClassifications];
 }
 
-- (void)setVideoDataOutput:(AVCaptureVideoDataOutput *)videoDataOutput
+#pragma mark Photo Session
+
+- (void)videoDataOutputNeeded
 {
-    if (videoDataOutput) {
-        if ([self.session canAddOutput:videoDataOutput]) {
-            _videoDataOutput = videoDataOutput;
-            [_videoDataOutput setSampleBufferDelegate:self
-                                                queue:self.photoSessionQueue];
-            [self.session addOutput:videoDataOutput];
-            [self checkVideoOrientation];
+    if (!_videoDataOutput) {
+        [self inactivatePhotoSessionForDuration:1.8];
+
+        _videoDataOutput = [AVCaptureVideoDataOutput new];
+        
+        [_videoDataOutput setSampleBufferDelegate:self
+                                            queue:self.sessionQueue];
+        [self.session addOutput:_videoDataOutput];
+        
+        if (!_orientationObserverAdded) {
             [[NSNotificationCenter defaultCenter] addObserver:self
-                                                     selector:@selector(checkVideoOrientation)
+                                                     selector:@selector(didRotate)
                                                          name:UIDeviceOrientationDidChangeNotification
                                                        object:nil];
-        } else if ([self.session.outputs containsObject:videoDataOutput]) {
-            _videoDataOutput = videoDataOutput;
-        } else {
-            _videoDataOutput = nil;
+            _orientationObserverAdded = YES;
         }
-    } else {
-        _videoDataOutput = nil;
+        [self checkVideoOrientation];
+    }
+}
+
+- (void)videoDataOutputNotNeeded
+{
+    if (_videoDataOutput) {
         [self.session removeOutput:_videoDataOutput];
+        _videoDataOutput = nil;
+    }
+}
+
+- (void)setPhotoSessionActive:(BOOL)photoSessionActive
+{
+    if (photoSessionActive != _photoSessionActive) {
+        _photoSessionActive = photoSessionActive;
+        dispatch_async(self.sessionQueue, ^{
+            if (self->_photoSessionActive) {
+                [self videoDataOutputNeeded];
+            } else {
+                self->_photoSessionItemReject = nil;
+                self->_photoSessionItemResolve = nil;
+                self->_photoSessionItemOptions = nil;
+                self->_photoSessionOptions = nil;
+                [self videoDataOutputNotNeeded];
+            }
+        });
+    }
+}
+
+- (void)dealloc
+{
+    if (_orientationObserverAdded) {
         [[NSNotificationCenter defaultCenter] removeObserver:self
                                                         name:UIDeviceOrientationDidChangeNotification
                                                       object:nil];
     }
 }
 
-- (void)dealloc
+- (void)didRotate
 {
-    self.videoDataOutput = nil;
-}
-
-- (AVCaptureVideoDataOutput *)sessionVideoDataOutput
-{
-    NSArray *outputs = self.session.outputs;
-    for (id output in outputs) {
-        if ([output isKindOfClass:[AVCaptureVideoDataOutput class]]) {
-            return output;
-        }
-    }
-    return nil;
+    [self inactivatePhotoSessionForDuration:.5];
+    [self checkVideoOrientation];
 }
 
 - (void)checkVideoOrientation
 {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        AVCaptureConnection *connection = [self.sessionVideoDataOutput connectionWithMediaType:AVMediaTypeVideo];
-        if ([connection isVideoOrientationSupported]) {
-            [connection setVideoOrientation:[RNCameraUtils videoOrientationForDeviceOrientation:[[UIDevice currentDevice] orientation]]];
+    dispatch_async(self.sessionQueue, ^{
+        AVCaptureOutput *output = self.session.outputs.lastObject;
+        if (output) {
+            AVCaptureConnection *connection = [output connectionWithMediaType:AVMediaTypeVideo];
+            if ([connection isVideoOrientationSupported]) {
+                [connection setVideoOrientation:[RNCameraUtils videoOrientationForDeviceOrientation:[[UIDevice currentDevice] orientation]]];
+            }
         }
     });
 }
 
-- (dispatch_queue_t)photoSessionQueue
-{
-    if (!_photoSessionQueue) {
-        _photoSessionQueue = dispatch_queue_create("PHOTOSESSIONQUEUE", 0);
-    }
-    return _photoSessionQueue;
-}
-
 - (void)startPhotoSession:(NSDictionary *)options resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject
 {
+    _photoSessionOptions = options;
     NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
-    if (!_videoDataOutput) {
-        self.videoDataOutput = [AVCaptureVideoDataOutput new];
-        if (!_videoDataOutput) {
-            self.videoDataOutput = self.sessionVideoDataOutput;
-        }
-        if (self.videoDataOutput) {
-            response[@"status"] = @"New photo session started";
-        } else {
-            reject(@"-1", @"Could not start photo session", nil);
-            return;
-        }
+    if (!self.isPhotoSessionActive) {
+        self.photoSessionActive = YES;
+        dispatch_async(self.sessionQueue, ^{
+            if (self.isPhotoSessionActive) {
+                if (self->_videoDataOutput) {
+                    response[@"status"] = @"New photo session started";
+                    resolve(response);
+                } else {
+                    self.photoSessionActive = NO;
+                    reject(@"-1", @"Could not start photo session", nil);
+                }
+            } else {
+                reject(@"-1", @"Photo session was cancelled", nil);
+            }
+        });
     } else {
         response[@"status"] = @"Photo session already started";
+        resolve(response);
     }
-    resolve(response);
+}
+
+- (void)inactivatePhotoSessionForDuration:(NSTimeInterval)duration
+{
+    NSDate *date = [NSDate dateWithTimeIntervalSinceNow:duration];
+    if (!_inactiveTillDate || [_inactiveTillDate timeIntervalSinceDate:date] < 0) {
+        _inactiveTillDate = date;
+    }
+}
+
+- (BOOL)photoSessionInactivated
+{
+    if (_inactiveTillDate) {
+        BOOL res = [_inactiveTillDate timeIntervalSinceNow] > 0;
+        if (!res) {
+            _inactiveTillDate = nil;
+        }
+        return res;
+    }
+    return NO;
 }
 
 - (void)stopPhotoSession:(NSDictionary *)options resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject
 {
     NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
-    if (_videoDataOutput) {
-        self.videoDataOutput = nil;
-        response[@"status"] = @"Photo session stopped";
+    if (self.isPhotoSessionActive) {
+        self.photoSessionActive = NO;
+        dispatch_async(self.sessionQueue, ^{
+            if (self.isPhotoSessionActive) {
+                reject(@"-1", @"Photo session was restarted", nil);
+            } else {
+                response[@"status"] = @"Photo session stopped";
+                resolve(response);
+            }
+        });
     } else {
         response[@"status"] = @"No photo session to stop";
+        resolve(response);
     }
-    resolve(response);
 }
 
 - (void)captureOutput:(AVCaptureOutput *)output didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection
 {
-    if (_photoSessionItemResolve) {
-        RCTPromiseResolveBlock resolve = _photoSessionItemResolve;
+    if ([self photoSessionInactivated]) return;
+    
+    RCTPromiseResolveBlock resolve = _photoSessionItemResolve;
+    if (self.photoSessionActive && resolve) {
         _photoSessionItemResolve = nil;
+        
+        RCTPromiseRejectBlock reject = _photoSessionItemReject;
+        _photoSessionItemReject = nil;
+        
+        NSDictionary *options = _photoSessionItemOptions;
+        _photoSessionItemOptions = nil;
+        
         CVImageBufferRef buffer = CMSampleBufferGetImageBuffer(sampleBuffer);
         CIImage *ciImage = [CIImage imageWithCVImageBuffer:buffer];
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
             CIContext *context = [CIContext new];
             CGImageRef cgImage = [context createCGImage:ciImage fromRect:ciImage.extent];
             UIImage *image = [UIImage imageWithCGImage:cgImage];
-            NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
-            //NSData *imageData = UIImageJPEGRepresentation(image, 0.5);
-            NSData *imageData = UIImagePNGRepresentation(image);
-            response[@"base64"] = [imageData base64EncodedStringWithOptions:0];
-            resolve(response);
+            CGImageRelease(cgImage);
+            if (image) {
+                [self handlePicture:image
+                       sampleBuffer:sampleBuffer
+                            options:options
+                            resolve:resolve];
+            } else {
+                reject(@"-1", @"Could not process camera output", nil);
+            }
         });
     }
 }
 
 - (void)takePicture:(NSDictionary *)options resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject
 {
-    if (_videoDataOutput) {
-        _photoSessionItemResolve = resolve;
+    if (self.photoSessionActive) {
+        if (_photoSessionItemReject) {
+            _photoSessionItemReject(@"-1", @"Capture cancelled by new call", nil);
+        }
         _photoSessionItemOptions = options;
+        _photoSessionItemResolve = resolve;
+        _photoSessionItemReject = reject;
         return;
     }
     
@@ -444,64 +511,77 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
             
             UIImage *takenImage = [UIImage imageWithData:imageData];
             
-            CGRect frame = [_previewLayer metadataOutputRectOfInterestForRect:self.frame];
+            CGRect frame = [self->_previewLayer metadataOutputRectOfInterestForRect:self.frame];
             CGImageRef takenCGImage = takenImage.CGImage;
             size_t width = CGImageGetWidth(takenCGImage);
             size_t height = CGImageGetHeight(takenCGImage);
             CGRect cropRect = CGRectMake(frame.origin.x * width, frame.origin.y * height, frame.size.width * width, frame.size.height * height);
             takenImage = [RNImageUtils cropImage:takenImage toRect:cropRect];
+            [self handlePicture:takenImage
+                   sampleBuffer:imageSampleBuffer
+                        options:options
+                        resolve:resolve];
             
-            if ([options[@"mirrorImage"] boolValue]) {
-                takenImage = [RNImageUtils mirrorImage:takenImage];
-            }
-            if ([options[@"forceUpOrientation"] boolValue]) {
-                takenImage = [RNImageUtils forceUpOrientation:takenImage];
-            }
-            
-            if ([options[@"width"] integerValue]) {
-                takenImage = [RNImageUtils scaleImage:takenImage toWidth:[options[@"width"] integerValue]];
-            }
-            
-            NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
-            float quality = [options[@"quality"] floatValue];
-            NSData *takenImageData = UIImageJPEGRepresentation(takenImage, quality);
-            NSString *path = [RNFileSystem generatePathInDirectory:[[RNFileSystem cacheDirectoryPath] stringByAppendingPathComponent:@"Camera"] withExtension:@".jpg"];
-            response[@"uri"] = [RNImageUtils writeImage:takenImageData toPath:path];
-            response[@"width"] = @(takenImage.size.width);
-            response[@"height"] = @(takenImage.size.height);
-            
-            if ([options[@"base64"] boolValue]) {
-                response[@"base64"] = [takenImageData base64EncodedStringWithOptions:0];
-            }
-            
-            if ([options[@"exif"] boolValue]) {
-                int imageRotation;
-                switch (takenImage.imageOrientation) {
-                    case UIImageOrientationLeft:
-                    case UIImageOrientationRightMirrored:
-                        imageRotation = 90;
-                        break;
-                    case UIImageOrientationRight:
-                    case UIImageOrientationLeftMirrored:
-                        imageRotation = -90;
-                        break;
-                    case UIImageOrientationDown:
-                    case UIImageOrientationDownMirrored:
-                        imageRotation = 180;
-                        break;
-                    case UIImageOrientationUpMirrored:
-                    default:
-                        imageRotation = 0;
-                        break;
-                }
-                [RNImageUtils updatePhotoMetadata:imageSampleBuffer withAdditionalData:@{ @"Orientation": @(imageRotation) } inResponse:response]; // TODO
-            }
-            
-            resolve(response);
         } else {
             reject(@"E_IMAGE_CAPTURE_FAILED", @"Image could not be captured", error);
         }
     }];
+}
+
+- (void)handlePicture:(UIImage *)image
+         sampleBuffer:(CMSampleBufferRef)sampleBuffer
+              options:(NSDictionary *)options
+              resolve:(RCTPromiseResolveBlock)resolve
+{
+    if ([options[@"mirrorImage"] boolValue]) {
+        image = [RNImageUtils mirrorImage:image];
+    }
+    if ([options[@"forceUpOrientation"] boolValue]) {
+        image = [RNImageUtils forceUpOrientation:image];
+    }
+    
+    if ([options[@"width"] integerValue]) {
+        image = [RNImageUtils scaleImage:image toWidth:[options[@"width"] integerValue]];
+    }
+    
+    NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
+    float quality = [options[@"quality"] floatValue];
+    NSData *imageData = UIImageJPEGRepresentation(image, quality);
+    NSString *path = [RNFileSystem generatePathInDirectory:[[RNFileSystem cacheDirectoryPath] stringByAppendingPathComponent:@"Camera"] withExtension:@".jpg"];
+    response[@"uri"] = [RNImageUtils writeImage:imageData toPath:path];
+    response[@"width"] = @(image.size.width);
+    response[@"height"] = @(image.size.height);
+    
+    if ([options[@"base64"] boolValue]) {
+        response[@"base64"] = [imageData base64EncodedStringWithOptions:0];
+    }
+    
+    if ([options[@"exif"] boolValue]) {
+        int imageRotation;
+        switch (image.imageOrientation) {
+            case UIImageOrientationLeft:
+            case UIImageOrientationRightMirrored:
+                imageRotation = 90;
+                break;
+            case UIImageOrientationRight:
+            case UIImageOrientationLeftMirrored:
+                imageRotation = -90;
+                break;
+            case UIImageOrientationDown:
+            case UIImageOrientationDownMirrored:
+                imageRotation = 180;
+                break;
+            case UIImageOrientationUpMirrored:
+            default:
+                imageRotation = 0;
+                break;
+        }
+        [RNImageUtils updatePhotoMetadata:sampleBuffer
+                       withAdditionalData:@{ @"Orientation": @(imageRotation) }
+                               inResponse:response]; // TODO
+    }
+    
+    resolve(response);
 }
 
 - (void)record:(NSDictionary *)options resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject

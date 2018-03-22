@@ -29,6 +29,10 @@
     "idx": "2.2.0",
     "minimist": "1.2.0"
   },
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*"
+  },
   "homepage": "https://github.com/react-native-community/react-native-camera",
   "keywords": [
     "barcode",

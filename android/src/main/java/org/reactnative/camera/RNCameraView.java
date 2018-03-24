@@ -2,9 +2,16 @@ package org.reactnative.camera;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
+import android.graphics.ImageFormat;
+import android.graphics.Matrix;
+import android.graphics.Rect;
+import android.graphics.YuvImage;
 import android.media.CamcorderProfile;
 import android.os.Build;
+import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
 import android.util.SparseArray;
 import android.view.View;
@@ -31,8 +38,10 @@ import org.reactnative.camera.utils.ImageDimensions;
 import org.reactnative.camera.utils.RNFileUtils;
 import org.reactnative.facedetector.RNFaceDetector;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
@@ -107,8 +116,10 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
       }
 
       @Override
-      public void onFramePreview(CameraView cameraView, byte[] data, int width, int height, int rotation) {
-        int correctRotation = RNCameraViewHelper.getCorrectCameraRotation(rotation, getFacing());
+      public void onFramePreview(CameraView cameraView, final byte[] data, final int width, final int height, final int rotation) {
+        if (useTakePicture()) return;
+
+        final int correctRotation = RNCameraViewHelper.getCorrectCameraRotation(rotation, getFacing());
 
         if (mShouldScanBarCodes && !barCodeScannerTaskLock && cameraView instanceof BarCodeScannerAsyncTaskDelegate) {
           barCodeScannerTaskLock = true;
@@ -120,6 +131,34 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
           faceDetectorTaskLock = true;
           FaceDetectorAsyncTaskDelegate delegate = (FaceDetectorAsyncTaskDelegate) cameraView;
           new FaceDetectorAsyncTask(delegate, mFaceDetector, data, width, height, correctRotation).execute();
+        }
+
+        final Promise promise = mPictureTakenPromises.poll();
+        if (promise != null) {
+          Thread thread = new Thread() {
+            @Override
+            public void run() {
+              YuvImage yuv = new YuvImage(data, ImageFormat.NV21, width, height, null);
+
+              ByteArrayOutputStream jpegout = new ByteArrayOutputStream();
+              yuv.compressToJpeg(new Rect(0, 0, yuv.getWidth(), yuv.getHeight()), 100, jpegout);
+
+              byte[] jpegBytes = jpegout.toByteArray();
+              Bitmap bitmap = BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.length);
+
+              Matrix matrix = new Matrix();
+              matrix.postRotate(correctRotation);
+              Bitmap rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+
+              ByteArrayOutputStream jpegout2 = new ByteArrayOutputStream();
+              rotated.compress(Bitmap.CompressFormat.JPEG, 100, jpegout2);
+
+              ReadableMap options = mPictureTakenOptions.remove(promise);
+              final File cacheDirectory = mPictureTakenDirectories.remove(promise);
+              new ResolveTakenPictureAsyncTask(jpegout2.toByteArray(), promise, options, cacheDirectory).execute();
+            }
+          };
+          thread.start();
         }
       }
     });
@@ -156,11 +195,45 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
     initBarcodeReader();
   }
 
+  public Object getImpl() {
+    try {
+      Field field = CameraView.class.getDeclaredField("mImpl");
+      field.setAccessible(true);
+      Object value = field.get(this);
+      field.setAccessible(false);
+
+      return value;
+    } catch (NoSuchFieldException e) {
+      throw new RuntimeException(e);
+    } catch (IllegalAccessException e) {
+      throw new RuntimeException(e);
+    }
+
+  }
+
+  private boolean usingCamera2() {
+    boolean res = false;
+    Object impl = getImpl();
+    if (impl != null) {
+      String className = impl.getClass().getName();
+      if (className.contains("cameraview.Camera2")) {
+        res = true;
+      }
+    }
+    return res;
+  }
+
+  private boolean useTakePicture() {
+    return usingCamera2();
+  }
+
   public void takePicture(ReadableMap options, final Promise promise, File cacheDirectory) {
     mPictureTakenPromises.add(promise);
     mPictureTakenOptions.put(promise, options);
     mPictureTakenDirectories.put(promise, cacheDirectory);
-    super.takePicture();
+    if (useTakePicture()) {
+      super.takePicture();
+    }
   }
 
   public void record(ReadableMap options, final Promise promise, File cacheDirectory) {
@@ -295,6 +368,9 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
         mIsNew = false;
         if (!Build.FINGERPRINT.contains("generic")) {
           start();
+          if (!useTakePicture()) {
+            setScanning(true);
+          }
         }
       }
     } else {

@@ -66,17 +66,20 @@ public class ResolveTakenPictureAsyncTask extends AsyncTask<Void, Void, Writable
                 int orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION,
                         ExifInterface.ORIENTATION_UNDEFINED);
 
-                if (mOptions.hasKey("width")) {
-                    mBitmap = resizeBitmap(mBitmap, mOptions.getInt("width"));
-                }
-
                 // Rotate the bitmap to the proper orientation if needed
                 if (mOptions.hasKey("fixOrientation") && mOptions.getBoolean("fixOrientation") && orientation != ExifInterface.ORIENTATION_UNDEFINED) {
+                    if (orientation == 0) {
+                        orientation = ExifInterface.ORIENTATION_ROTATE_90;
+                    }
                     mBitmap = rotateBitmap(mBitmap, getImageRotation(orientation));
                 }
 
                 if (mOptions.hasKey("mirrorImage") && mOptions.getBoolean("mirrorImage")) {
                     mBitmap = flipHorizontally(mBitmap);
+                }
+
+                if (mOptions.hasKey("width")) {
+                    mBitmap = resizeBitmap(mBitmap, mOptions.getInt("width"));
                 }
 
                 // Write Exif data to the response if requested

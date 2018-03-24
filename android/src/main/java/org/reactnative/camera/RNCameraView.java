@@ -22,6 +22,7 @@ import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.uimanager.ThemedReactContext;
+import com.google.android.cameraview.AspectRatio;
 import com.google.android.cameraview.CameraView;
 import com.google.android.gms.vision.face.Face;
 import com.google.zxing.BarcodeFormat;
@@ -47,6 +48,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -60,6 +62,8 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
 
   private boolean mIsPaused = false;
   private boolean mIsNew = true;
+  private AspectRatio mAspectRatio;
+  private boolean mAutoAspectRatio = false;
 
   // Concurrency lock for scanners to avoid flooding the runtime
   public volatile boolean barCodeScannerTaskLock = false;
@@ -165,6 +169,43 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
   }
 
   @Override
+  public void setAspectRatio(@NonNull AspectRatio ratio) {
+    mAspectRatio = ratio;
+    if (!mAutoAspectRatio) {
+      super.setAspectRatio(ratio);
+      this.requestLayout();
+    }
+  }
+
+  public void setAutoRatio(boolean autoAspectRatio) {
+    if (autoAspectRatio != mAutoAspectRatio) {
+      mAutoAspectRatio = autoAspectRatio;
+      if (!autoAspectRatio && mAspectRatio != null) {
+        super.setAspectRatio(mAspectRatio);
+      }
+      this.requestLayout();
+    }
+  }
+
+  private AspectRatio getOptimalAspectRatio(int w, int h) {
+    Set<AspectRatio> sizes = getSupportedAspectRatios();
+    if (sizes == null) return null;
+
+    AspectRatio optimalSize = null;
+    double ratio = (double)h / w;
+    double minDiff = Double.MAX_VALUE;
+    double newDiff;
+    for (AspectRatio size : sizes) {
+      newDiff = Math.abs((double)size.getY()/ size.getX() - ratio);
+      if (newDiff < minDiff) {
+        optimalSize = size;
+        minDiff = newDiff;
+      }
+    }
+    return optimalSize;
+  }
+
+  @Override
   protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
     View preview = getView();
     if (null == preview) {
@@ -173,7 +214,28 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
     this.setBackgroundColor(Color.BLACK);
     int width = right - left;
     int height = bottom - top;
-    preview.layout(0, 0, width, height);
+    float ratio = (float)height / (float)width;
+    float targetRatio = (float)preview.getMeasuredHeight() / (float)preview.getMeasuredWidth();
+    if (targetRatio > ratio) {
+      float diff = (float)width * targetRatio - (float)height;
+      preview.layout(0, -(int)(diff / 2), width, height + (int)(diff / 2));
+    } else if (targetRatio < ratio) {
+      float diff = (float)height / targetRatio - (float)width;
+      preview.layout(-(int)(diff / 2),0, width + (int)(diff / 2), height);
+    } else {
+      preview.layout(0, 0, width, height);
+    }
+    if (mAutoAspectRatio) {
+      AspectRatio aspectRatio = getOptimalAspectRatio(preview.getWidth(), preview.getHeight());
+      boolean wasNull = super.getAspectRatio() == null;
+      boolean wouldBeNull = aspectRatio == null;
+      if (wasNull != wouldBeNull || !aspectRatio.equals(super.getAspectRatio())) {
+        super.setAspectRatio(aspectRatio);
+        stop();
+        start();
+        requestLayout();
+      }
+    }
   }
 
   @Override

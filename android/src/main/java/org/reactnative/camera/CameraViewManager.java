@@ -72,6 +72,11 @@ public class CameraViewManager extends ViewGroupManager<RNCameraView> {
     view.setAspectRatio(AspectRatio.parse(ratio));
   }
 
+  @ReactProp(name = "autoRatio")
+  public void setAutoRatio(RNCameraView view, boolean autoAspectRatio) {
+    view.setAutoRatio(autoAspectRatio);
+  }
+
   @ReactProp(name = "flashMode")
   public void setFlashMode(RNCameraView view, int torchMode) {
     view.setFlash(torchMode);

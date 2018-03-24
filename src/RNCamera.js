@@ -46,6 +46,7 @@ type EventCallbackArgumentsType = {
 type PropsType = ViewPropTypes & {
   zoom?: number,
   ratio?: string,
+  autoRatio?: boolean,
   focusDepth?: number,
   type?: number | string,
   onCameraReady?: Function,
@@ -117,6 +118,7 @@ export default class Camera extends React.Component<PropsType> {
     ...ViewPropTypes,
     zoom: PropTypes.number,
     ratio: PropTypes.string,
+    autoRatio: PropTypes.bool,
     focusDepth: PropTypes.number,
     onMountError: PropTypes.func,
     onCameraReady: PropTypes.func,
@@ -141,6 +143,7 @@ export default class Camera extends React.Component<PropsType> {
   static defaultProps: Object = {
     zoom: 0,
     ratio: '4:3',
+    autoRatio: false,
     focusDepth: 0,
     type: CameraManager.Type.back,
     autoFocus: CameraManager.AutoFocus.on,

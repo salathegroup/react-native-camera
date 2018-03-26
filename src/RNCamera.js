@@ -131,7 +131,11 @@ export default class Camera extends React.Component<PropsType> {
     type: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     flashMode: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     whiteBalance: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-    autoFocus: PropTypes.oneOfType([PropTypes.string, PropTypes.number, PropTypes.bool]),
+    autoFocus: PropTypes.oneOfType([
+      PropTypes.string,
+      PropTypes.number,
+      PropTypes.bool,
+    ]),
     permissionDialogTitle: PropTypes.string,
     permissionDialogMessage: PropTypes.string,
     notAuthorizedView: PropTypes.element,
@@ -152,7 +156,8 @@ export default class Camera extends React.Component<PropsType> {
     faceDetectionMode: CameraManager.FaceDetection.fast,
     barCodeTypes: Object.values(CameraManager.BarCodeType),
     faceDetectionLandmarks: CameraManager.FaceDetection.Landmarks.none,
-    faceDetectionClassifications: CameraManager.FaceDetection.Classifications.none,
+    faceDetectionClassifications:
+      CameraManager.FaceDetection.Classifications.none,
     permissionDialogTitle: '',
     permissionDialogMessage: '',
     notAuthorizedView: (
@@ -264,7 +269,9 @@ export default class Camera extends React.Component<PropsType> {
     }
   };
 
-  _onObjectDetected = (callback: ?Function) => ({ nativeEvent }: EventCallbackArgumentsType) => {
+  _onObjectDetected = (callback: ?Function) => ({
+    nativeEvent,
+  }: EventCallbackArgumentsType) => {
     const { type } = nativeEvent;
 
     if (
@@ -299,7 +306,7 @@ export default class Camera extends React.Component<PropsType> {
       hasVideoAndAudio,
       CameraManager,
       this.props.permissionDialogTitle,
-      this.props.permissionDialogMessage,
+      this.props.permissionDialogMessage
     );
     this.setState({ isAuthorized, isAuthorizationChecked: true });
   }

@@ -3,12 +3,8 @@ package org.reactnative.camera;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.graphics.ImageFormat;
 import android.graphics.Matrix;
-import android.graphics.Rect;
-import android.graphics.YuvImage;
 import android.media.CamcorderProfile;
 import android.os.Build;
 import android.support.annotation.NonNull;
@@ -37,6 +33,7 @@ import org.reactnative.camera.tasks.FaceDetectorAsyncTaskDelegate;
 import org.reactnative.camera.tasks.ResolveTakenPictureAsyncTask;
 import org.reactnative.camera.utils.ImageDimensions;
 import org.reactnative.camera.utils.RNFileUtils;
+import org.reactnative.camera.utils.YuvToRGB;
 import org.reactnative.facedetector.RNFaceDetector;
 
 import java.io.ByteArrayOutputStream;
@@ -59,6 +56,7 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
   private Map<Promise, File> mPictureTakenDirectories = new ConcurrentHashMap<>();
   private Promise mVideoRecordedPromise;
   private List<String> mBarCodeTypes = null;
+  private YuvToRGB mYuvToRGB = null;
 
   private boolean mIsPaused = false;
   private boolean mIsNew = true;
@@ -119,6 +117,12 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
         }
       }
 
+      private void yuvToRGBNeeded() {
+        if (mYuvToRGB == null) {
+          mYuvToRGB = new YuvToRGB(getContext());
+        }
+      }
+
       @Override
       public void onFramePreview(CameraView cameraView, final byte[] data, final int width, final int height, final int rotation) {
         if (useTakePicture()) return;
@@ -138,18 +142,16 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
         }
 
         final Promise promise = mPictureTakenPromises.poll();
+
         if (promise != null) {
+          yuvToRGBNeeded();
           Thread thread = new Thread() {
             @Override
             public void run() {
-              YuvImage yuv = new YuvImage(data, ImageFormat.NV21, width, height, null);
+              // Get RGB
+              Bitmap bitmap = mYuvToRGB.refreshBitmap(data, width, height);
 
-              ByteArrayOutputStream jpegout = new ByteArrayOutputStream();
-              yuv.compressToJpeg(new Rect(0, 0, yuv.getWidth(), yuv.getHeight()), 100, jpegout);
-
-              byte[] jpegBytes = jpegout.toByteArray();
-              Bitmap bitmap = BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.length);
-
+              // Rotate
               Matrix matrix = new Matrix();
               matrix.postRotate(correctRotation);
               Bitmap rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);

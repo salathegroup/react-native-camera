@@ -156,12 +156,15 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
               matrix.postRotate(correctRotation);
               Bitmap rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
 
+              // Get RGB
               ByteArrayOutputStream jpegout2 = new ByteArrayOutputStream();
               rotated.compress(Bitmap.CompressFormat.JPEG, 100, jpegout2);
+              byte[] output = jpegout2.toByteArray();
 
+              // Resolve
               ReadableMap options = mPictureTakenOptions.remove(promise);
               final File cacheDirectory = mPictureTakenDirectories.remove(promise);
-              new ResolveTakenPictureAsyncTask(jpegout2.toByteArray(), promise, options, cacheDirectory).execute();
+              new ResolveTakenPictureAsyncTask(output, promise, options, cacheDirectory).execute();
             }
           };
           thread.start();

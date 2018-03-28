@@ -8,6 +8,7 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.support.media.ExifInterface;
 import android.util.Base64;
+import android.util.Log;
 
 import org.reactnative.camera.RNCameraViewHelper;
 import org.reactnative.camera.utils.RNFileUtils;
@@ -57,6 +58,8 @@ public class ResolveTakenPictureAsyncTask extends AsyncTask<Void, Void, Writable
 
     @Override
     protected WritableMap doInBackground(Void... voids) {
+        Log.d("PROFILE", "***************");
+        long start = System.nanoTime();
         WritableMap response = Arguments.createMap();
         ByteArrayInputStream inputStream = null;
 
@@ -66,12 +69,17 @@ public class ResolveTakenPictureAsyncTask extends AsyncTask<Void, Void, Writable
             inputStream = new ByteArrayInputStream(mImageData);
         }
 
+        long elapsedTime = System.nanoTime() - start;
+        Log.d("PROFILE", "Get RGB: " + elapsedTime / 1E6);
+
         try {
             if (inputStream != null) {
                 ExifInterface exifInterface = new ExifInterface(inputStream);
                 // Get orientation of the image from mImageData via inputStream
                 int orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION,
                         ExifInterface.ORIENTATION_UNDEFINED);
+                elapsedTime = System.nanoTime() - start;
+                Log.d("PROFILE", "EXIF interface: " + elapsedTime / 1E6);
 
                 // Rotate the bitmap to the proper orientation if needed
                 if (mOptions.hasKey("fixOrientation") && mOptions.getBoolean("fixOrientation") && orientation != ExifInterface.ORIENTATION_UNDEFINED) {
@@ -79,20 +87,28 @@ public class ResolveTakenPictureAsyncTask extends AsyncTask<Void, Void, Writable
                         orientation = ExifInterface.ORIENTATION_ROTATE_90;
                     }
                     mBitmap = rotateBitmap(mBitmap, getImageRotation(orientation));
+                    elapsedTime = System.nanoTime() - start;
+                    Log.d("PROFILE", "Rotate: " + elapsedTime / 1E6);
                 }
 
                 if (mOptions.hasKey("mirrorImage") && mOptions.getBoolean("mirrorImage")) {
                     mBitmap = flipHorizontally(mBitmap);
+                    elapsedTime = System.nanoTime() - start;
+                    Log.d("PROFILE", "Mirror: " + elapsedTime / 1E6);
                 }
 
                 if (mOptions.hasKey("width")) {
                     mBitmap = resizeBitmap(mBitmap, mOptions.getInt("width"));
+                    elapsedTime = System.nanoTime() - start;
+                    Log.d("PROFILE", "Resize: " + elapsedTime / 1E6);
                 }
 
                 // Write Exif data to the response if requested
                 if (mOptions.hasKey("exif") && mOptions.getBoolean("exif")) {
                     WritableMap exifData = RNCameraViewHelper.getExifData(exifInterface);
                     response.putMap("exif", exifData);
+                    elapsedTime = System.nanoTime() - start;
+                    Log.d("PROFILE", "Write EXIF: " + elapsedTime / 1E6);
                 }
             }
 
@@ -103,16 +119,22 @@ public class ResolveTakenPictureAsyncTask extends AsyncTask<Void, Void, Writable
             // Cache compressed image in imageStream
             ByteArrayOutputStream imageStream = new ByteArrayOutputStream();
             mBitmap.compress(Bitmap.CompressFormat.JPEG, getQuality(), imageStream);
+            elapsedTime = System.nanoTime() - start;
+            Log.d("PROFILE", "Compress: " + elapsedTime / 1E6);
 
             // Write compressed image to file in cache directory
             String filePath = writeStreamToFile(imageStream);
             File imageFile = new File(filePath);
             String fileUri = Uri.fromFile(imageFile).toString();
             response.putString("uri", fileUri);
+            elapsedTime = System.nanoTime() - start;
+            Log.d("PROFILE", "Write file: " + elapsedTime / 1E6);
 
             // Write base64-encoded image to the response if requested
             if (mOptions.hasKey("base64") && mOptions.getBoolean("base64")) {
                 response.putString("base64", Base64.encodeToString(imageStream.toByteArray(), Base64.DEFAULT));
+                elapsedTime = System.nanoTime() - start;
+                Log.d("PROFILE", "Base64: " + elapsedTime / 1E6);
             }
 
             // Cleanup
@@ -121,6 +143,9 @@ public class ResolveTakenPictureAsyncTask extends AsyncTask<Void, Void, Writable
                 inputStream.close();
                 inputStream = null;
             }
+            elapsedTime = System.nanoTime() - start;
+            Log.d("PROFILE", "Close: " + elapsedTime / 1E6);
+
 
             return response;
         } catch (Resources.NotFoundException e) {

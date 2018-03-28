@@ -44,6 +44,13 @@ public class ResolveTakenPictureAsyncTask extends AsyncTask<Void, Void, Writable
         mCacheDirectory = cacheDirectory;
     }
 
+    public ResolveTakenPictureAsyncTask(Bitmap bitmap, Promise promise, ReadableMap options, File cacheDirectory) {
+        mPromise = promise;
+        mOptions = options;
+        mBitmap = bitmap;
+        mCacheDirectory = cacheDirectory;
+    }
+
     private int getQuality() {
         return (int) (mOptions.getDouble("quality") * 100);
     }

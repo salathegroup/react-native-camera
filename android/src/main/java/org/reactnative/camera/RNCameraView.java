@@ -9,6 +9,7 @@ import android.media.CamcorderProfile;
 import android.os.Build;
 import android.support.annotation.NonNull;
 import android.support.v4.content.ContextCompat;
+import android.util.Log;
 import android.util.SparseArray;
 import android.view.View;
 
@@ -31,12 +32,12 @@ import org.reactnative.camera.tasks.BarCodeScannerAsyncTaskDelegate;
 import org.reactnative.camera.tasks.FaceDetectorAsyncTask;
 import org.reactnative.camera.tasks.FaceDetectorAsyncTaskDelegate;
 import org.reactnative.camera.tasks.ResolveTakenPictureAsyncTask;
+import org.reactnative.camera.utils.BitmapRotate;
 import org.reactnative.camera.utils.ImageDimensions;
 import org.reactnative.camera.utils.RNFileUtils;
-import org.reactnative.camera.utils.YuvToRGB;
+import org.reactnative.camera.utils.YuvToBitmap;
 import org.reactnative.facedetector.RNFaceDetector;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -56,7 +57,8 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
   private Map<Promise, File> mPictureTakenDirectories = new ConcurrentHashMap<>();
   private Promise mVideoRecordedPromise;
   private List<String> mBarCodeTypes = null;
-  private YuvToRGB mYuvToRGB = null;
+  private YuvToBitmap mYuvToBitmap = null;
+  private BitmapRotate mBitmapRotate = null;
 
   private boolean mIsPaused = false;
   private boolean mIsNew = true;
@@ -117,9 +119,15 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
         }
       }
 
-      private void yuvToRGBNeeded() {
-        if (mYuvToRGB == null) {
-          mYuvToRGB = new YuvToRGB(getContext());
+      private void yuvToBitmapNeeded() {
+        if (mYuvToBitmap == null) {
+          mYuvToBitmap = new YuvToBitmap(getContext());
+        }
+      }
+
+      private void bitmapRotateNeeded() {
+        if (mBitmapRotate == null) {
+          mBitmapRotate = new BitmapRotate(getContext());
         }
       }
 
@@ -144,27 +152,45 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
         final Promise promise = mPictureTakenPromises.poll();
 
         if (promise != null) {
-          yuvToRGBNeeded();
+          yuvToBitmapNeeded();
+
           Thread thread = new Thread() {
             @Override
             public void run() {
+              Log.d("PROFILE", "***************");
+              long start = System.nanoTime();
               // Get RGB
-              Bitmap bitmap = mYuvToRGB.refreshBitmap(data, width, height);
+              Bitmap bitmap = mYuvToBitmap.refreshBitmap(data, width, height);
+              long elapsedTime = System.nanoTime() - start;
+              Log.d("PROFILE", "Get RGB: " + elapsedTime / 1E6);
 
-              // Rotate
-              Matrix matrix = new Matrix();
-              matrix.postRotate(correctRotation);
-              Bitmap rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+              Bitmap rotated;
+              if (correctRotation == 0) {
+                rotated = bitmap;
+              } else {
+                // Rotate
+                if (true) {
+                  Log.d("PROFILE", "Rotation: " + rotation + " (correctRotation: " + correctRotation + ")");
+                  bitmapRotateNeeded();
+                  if (false) {
+                    rotated = mBitmapRotate.refreshBitmap(bitmap, correctRotation);
+                  } else {
+                    rotated = mBitmapRotate.refreshBitmap(mYuvToBitmap.getOut(), correctRotation);
+                  }
+                } else {
+                  Matrix matrix = new Matrix();
+                  matrix.postRotate(correctRotation);
+                  rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, false);
+                }
+              }
 
-              // Get RGB
-              ByteArrayOutputStream jpegout2 = new ByteArrayOutputStream();
-              rotated.compress(Bitmap.CompressFormat.JPEG, 100, jpegout2);
-              byte[] output = jpegout2.toByteArray();
+              elapsedTime = System.nanoTime() - start;
+              Log.d("PROFILE", "Rotate: " + elapsedTime / 1E6);
 
-              // Resolve
+                // Resolve
               ReadableMap options = mPictureTakenOptions.remove(promise);
               final File cacheDirectory = mPictureTakenDirectories.remove(promise);
-              new ResolveTakenPictureAsyncTask(output, promise, options, cacheDirectory).execute();
+              new ResolveTakenPictureAsyncTask(rotated, promise, options, cacheDirectory).execute();
             }
           };
           thread.start();

@@ -294,10 +294,11 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
       field.setAccessible(true);
       Object value = field.get(this);
       field.setAccessible(false);
-
       return value;
+
     } catch (NoSuchFieldException e) {
       throw new RuntimeException(e);
+
     } catch (IllegalAccessException e) {
       throw new RuntimeException(e);
     }

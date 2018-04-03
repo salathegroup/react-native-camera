@@ -90,6 +90,8 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
       @Override
       public void onCameraOpened(CameraView cameraView) {
         RNCameraViewHelper.emitCameraReadyEvent(cameraView);
+
+        relayoutPreview(getLeft(), getTop(), getRight(), getBottom());
       }
 
       @Override
@@ -238,6 +240,10 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
 
   @Override
   protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+    relayoutPreview(left, top, right, bottom);
+  }
+
+  private void relayoutPreview(int left, int top, int right, int bottom) {
     View preview = getView();
     if (null == preview) {
       return;
@@ -246,7 +252,13 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
     int width = right - left;
     int height = bottom - top;
     float ratio = (float)height / (float)width;
-    float targetRatio = (float)preview.getMeasuredHeight() / (float)preview.getMeasuredWidth();
+    float targetRatio;
+    if (isCameraOpened()) {
+      AspectRatio aspectRatio = RNCameraViewHelper.getCurrentAspectRatio(this);
+      targetRatio = (float)aspectRatio.getX() / (float)aspectRatio.getY();
+    } else {
+      targetRatio = (float)preview.getMeasuredHeight() / (float)preview.getMeasuredWidth();
+    }
     if (targetRatio > ratio) {
       float diff = (float)width * targetRatio - (float)height;
       preview.layout(0, -(int)(diff / 2), width, height + (int)(diff / 2));

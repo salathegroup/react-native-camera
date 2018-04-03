@@ -1,5 +1,6 @@
 package org.reactnative.camera;
 
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -8,12 +9,16 @@ import android.media.CamcorderProfile;
 import android.os.Build;
 import android.support.media.ExifInterface;
 import android.util.SparseArray;
+import android.view.Display;
+import android.view.Surface;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.uimanager.UIManagerModule;
+import com.google.android.cameraview.AspectRatio;
 import com.google.android.cameraview.CameraView;
 import com.google.android.gms.vision.face.Face;
 import com.google.zxing.Result;
@@ -224,6 +229,20 @@ public class RNCameraViewHelper {
       return (rotation - 90 + 360) % 360;
     } else {
       return (-rotation + 90 + 360) % 360;
+    }
+  }
+
+  public static AspectRatio getCurrentAspectRatio(RNCameraView cameraView) {
+    AspectRatio aspectRatio = cameraView.getAspectRatio();
+
+    final Display display = ((WindowManager)cameraView.getContext()
+            .getSystemService(Context.WINDOW_SERVICE)).getDefaultDisplay();
+
+    int rotation = display.getRotation();
+    if (rotation == Surface.ROTATION_0 || rotation == Surface.ROTATION_180) {
+      return AspectRatio.of(aspectRatio.getX(), aspectRatio.getY());
+    } else {
+      return AspectRatio.of(aspectRatio.getY(), aspectRatio.getX());
     }
   }
 

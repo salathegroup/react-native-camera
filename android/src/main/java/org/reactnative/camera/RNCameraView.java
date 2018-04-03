@@ -214,7 +214,7 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
       if (!autoAspectRatio && mAspectRatio != null) {
         super.setAspectRatio(mAspectRatio);
       }
-      this.requestLayout();
+      requestLayout();
     }
   }
 

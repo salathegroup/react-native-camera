@@ -189,6 +189,7 @@ RCT_EXPORT_METHOD(startPhotoSession:(NSDictionary *)options
 {
 #if TARGET_IPHONE_SIMULATOR
     NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
+    response[@"status"] = @"New photo session started";
     resolve(response);
 #else
     [self.bridge.uiManager addUIBlock:^(__unused RCTUIManager *uiManager, NSDictionary<NSNumber *, RNCamera *> *viewRegistry) {

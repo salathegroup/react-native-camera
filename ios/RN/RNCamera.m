@@ -712,7 +712,7 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
     }
     __block UIInterfaceOrientation interfaceOrientation;
     
-    void (^statusBlock)() = ^() {
+    void (^statusBlock)(void) = ^() {
         interfaceOrientation = [[UIApplication sharedApplication] statusBarOrientation];
     };
     if ([NSThread isMainThread]) {

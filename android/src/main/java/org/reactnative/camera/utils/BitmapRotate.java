@@ -132,7 +132,8 @@ public class BitmapRotate {
             int h = aIn.getType().getY();
             int c2 = w * h * 4;
             int c = aIn.getBytesSize();
-            byte[] pixels = new byte[w * h * 4];
+            assert c == c2;
+            byte[] pixels = new byte[c];
             aIn.copyTo(pixels);
             Log.d("PROFILE", "Get pixels: " + (System.nanoTime() - start) / 1E6);
             mInAllocation.copyFrom(pixels);
@@ -154,6 +155,7 @@ public class BitmapRotate {
         Log.d("PROFILE", "Run script: " + (System.nanoTime() - start) / 1E6);
 
         int[] pixels = new int[mWidth * mHeight];
+        assert mRotateAllocation.getBytesSize() == pixels.length;
         mRotateAllocation.copyTo(pixels);
         Log.d("PROFILE", "Get pixels: " + (System.nanoTime() - start) / 1E6);
 

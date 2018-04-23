@@ -34,14 +34,14 @@ public class BitmapRotate {
     private void prepare(int width, int height, int rotation) {
         boolean renderScriptNeeded = mRenderScript == null;
         boolean allocNeeded = renderScriptNeeded || mBitmap == null
-                || mRotation != rotation % 360 || width != mWidth || height != mHeight;
+                || mRotation != ((rotation % 360) + 360) % 360 || width != mWidth || height != mHeight;
 
         if (renderScriptNeeded) {
             mRenderScript = RenderScript.create(mContext);
             mScript = new ScriptC_rotate(mRenderScript);
         }
         if (allocNeeded) {
-            mRotation = rotation % 360;
+            mRotation = rotation;
             mWidth = width;
             mHeight = height;
 

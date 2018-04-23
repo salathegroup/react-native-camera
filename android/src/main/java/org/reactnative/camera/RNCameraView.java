@@ -59,6 +59,8 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
   private List<String> mBarCodeTypes = null;
   private YuvToBitmap mYuvToBitmap = null;
   private BitmapRotate mBitmapRotate = null;
+  private Matrix mRotationMatrix = null;
+  private int mLastRotation = -1;
 
   private boolean mIsPaused = false;
   private boolean mIsNew = true;
@@ -180,9 +182,13 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
                     rotated = mBitmapRotate.refreshBitmap(mYuvToBitmap.getOut(), correctRotation);
                   }
                 } else {
-                  Matrix matrix = new Matrix();
-                  matrix.postRotate(correctRotation);
-                  rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, false);
+                  if (mLastRotation != correctRotation) {
+                    mLastRotation = correctRotation;
+                    mRotationMatrix = new Matrix();
+                    mRotationMatrix.postRotate(correctRotation);
+                  }
+                  Bitmap bitmap = mYuvToBitmap.getBimap();
+                  rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), mRotationMatrix, false);
                 }
               }
 

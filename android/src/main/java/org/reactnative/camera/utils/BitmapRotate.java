@@ -164,8 +164,6 @@ public class BitmapRotate {
         mBitmap.setPixels(pixels, 0, bmW, 0, 0, bmW, bmH);
         Log.d("PROFILE", "Set pixels: " + (System.nanoTime() - start) / 1E6);
 
-        // mBitmap = Bitmap.createBitmap(pixels, height, width, Bitmap.Config.ARGB_8888);
-
         return mBitmap;
 /*
         rotation = 90;

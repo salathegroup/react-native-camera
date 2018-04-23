@@ -164,9 +164,11 @@ void root(const int32_t *v_in, int32_t *v_out, const void *usrData, uint32_t x, 
             }
         }
     } else if (gRotation == 270) {
+        uchar4 *inRow = &gInPixels[row_index * gImageWidth];
+        int outOffset = gImageHeight - row_index - 1;
         for (int i = gImageWidth - 1; i >= 0; i--) {
-            uchar4 inPixel = gInPixels[row_index * gImageWidth + i];
-            int targetPos = gImageHeight - i * gImageHeight - 1 + row_index;
+            uchar4 inPixel = inRow[i];
+            int targetPos = i * gImageHeight + outOffset;
             if (gFixByteOrder) {
                 float4 f4 = rsUnpackColor8888(inPixel);
                 float3 output = {f4.b, f4.g, f4.r};

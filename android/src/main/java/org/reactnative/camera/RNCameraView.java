@@ -80,6 +80,8 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
   private int mFaceDetectionLandmarks = RNFaceDetector.NO_LANDMARKS;
   private int mFaceDetectionClassifications = RNFaceDetector.NO_CLASSIFICATIONS;
 
+  private Bitmap mTestBitmap;
+
   public RNCameraView(ThemedReactContext themedReactContext) {
     super(themedReactContext, true);
     initBarcodeReader();
@@ -156,6 +158,8 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
         final Promise promise = mPictureTakenPromises.poll();
 
         if (promise != null) {
+          Log.d("ROTATION", "" + rotation + " (correct: " + correctRotation + ")");
+
           yuvToBitmapNeeded();
 
           Thread thread = new Thread() {
@@ -164,22 +168,40 @@ public class RNCameraView extends CameraView implements LifecycleEventListener, 
               Log.d("PROFILE", "***************");
               long start = System.nanoTime();
               // Get RGB
-              Bitmap bitmap = mYuvToBitmap.refreshBitmap(data, width, height);
+              mYuvToBitmap.refreshBitmap(data, width, height);
               long elapsedTime = System.nanoTime() - start;
               Log.d("PROFILE", "Get RGB: " + elapsedTime / 1E6);
 
+              boolean testRotation = false;
               Bitmap rotated;
-              if (correctRotation == 0) {
-                rotated = bitmap;
+              if (!testRotation && correctRotation == 0) { /////////////!!!!!
+                rotated = mYuvToBitmap.getBimap();
               } else {
                 // Rotate
-                if (true) {
+                boolean useRenderScript = false;
+                if (testRotation || useRenderScript) {
+                  boolean useAllocation = false;
                   Log.d("PROFILE", "Rotation: " + rotation + " (correctRotation: " + correctRotation + ")");
                   bitmapRotateNeeded();
-                  if (false) {
-                    rotated = mBitmapRotate.refreshBitmap(bitmap, correctRotation);
-                  } else {
+                  if (!testRotation && useAllocation) {
                     rotated = mBitmapRotate.refreshBitmap(mYuvToBitmap.getOut(), correctRotation);
+                  } else {
+                    if (testRotation) {
+                      if (mTestBitmap == null) {
+                        Bitmap yuv = mYuvToBitmap.getBimap();
+                        mTestBitmap = Bitmap.createBitmap(yuv.getWidth(), yuv.getHeight(), Bitmap.Config.ARGB_8888);
+                        int color = 0xFF000000;
+                        int[] pixels = new int[width * height];
+                        for (int i=0; i<width * height; i++) {
+                          pixels[i] = color++;
+                        }
+                        mTestBitmap.setPixels(pixels, 0, yuv.getWidth(), 0, 0, yuv.getWidth(), yuv.getHeight());
+                      }
+                      rotated = mBitmapRotate.refreshBitmap(mTestBitmap, correctRotation);
+
+                    } else {
+                      rotated = mBitmapRotate.refreshBitmap(mYuvToBitmap.getBimap(), correctRotation);
+                    }
                   }
                 } else {
                   if (mLastRotation != correctRotation) {

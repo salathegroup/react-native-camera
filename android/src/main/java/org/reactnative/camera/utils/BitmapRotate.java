@@ -10,6 +10,7 @@ import android.util.Log;
 
 import com.example.android.rs.hellocompute.ScriptC_rotate;
 
+//import java.math.BigInteger;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -104,6 +105,9 @@ public class BitmapRotate {
 
             int[] pixels = new int[width * height];
             bitmap.getPixels(pixels, 0, width, 0, 0, width, height);
+            /*for (int i=0; i<2000; i++) {
+                Log.d("PIXEL", "" + Long.toHexString(pixels[i] & 0xFFFFFFFFl));
+            }*/
             Log.d("PROFILE", "Get pixels: " + (System.nanoTime() - start) / 1E6);
 
             mInAllocation.copyFromUnchecked(pixels);

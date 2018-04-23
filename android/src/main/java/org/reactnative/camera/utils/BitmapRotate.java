@@ -58,15 +58,13 @@ public class BitmapRotate {
             mBitmap = Bitmap.createBitmap(resWidth, resHeight, Bitmap.Config.ARGB_8888);
 
             Type.Builder inTypeBuilder = new Type.Builder(mRenderScript, Element.U8_4(mRenderScript));
-            Type.Builder outTypeBuilder = new Type.Builder(mRenderScript, Element.U32(mRenderScript));
-
             inTypeBuilder.setX(width).setY(height);
-            outTypeBuilder.setX(resWidth).setY(resHeight);
-
             Type inType = inTypeBuilder.create();
-            Type outType = outTypeBuilder.create();
-
             mInAllocation = Allocation.createTyped(mRenderScript, inType);
+
+            Type.Builder outTypeBuilder = new Type.Builder(mRenderScript, Element.U32(mRenderScript));
+            outTypeBuilder.setX(resWidth).setY(resHeight);
+            Type outType = outTypeBuilder.create();
             mRotateAllocation = Allocation.createTyped(mRenderScript, outType);
 
             mRowIndicesAllocation = Allocation.createSized(mRenderScript,

@@ -17,6 +17,7 @@ public class YuvToBitmap {
     private ScriptIntrinsicYuvToRGB mYuvToRgbIntrinsic;
     private Allocation aIn, aOut;
     private Bitmap mBitmap;
+    private boolean mReloadBitmap;
 
     public YuvToBitmap(Context context) {
         mContext = context;
@@ -46,11 +47,19 @@ public class YuvToBitmap {
         return aOut;
     }
 
-    public Bitmap refreshBitmap(byte[] data, int width, int height) {
+    public Bitmap getBimap() {
+        if (mReloadBitmap) {
+            aOut.copyTo(mBitmap);
+            mReloadBitmap = false;
+        }
+        int byteCount = mBitmap.getByteCount();
+        return mBitmap;
+    }
+
+    public void refreshBitmap(byte[] data, int width, int height) {
+        mReloadBitmap = true;
         this.prepare(width, height);
         aIn.copyFrom(data);
         mYuvToRgbIntrinsic.forEach(aOut);
-        aOut.copyTo(mBitmap);
-        return mBitmap;
     }
 }

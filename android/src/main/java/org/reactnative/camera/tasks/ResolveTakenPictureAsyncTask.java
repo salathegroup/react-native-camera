@@ -122,13 +122,15 @@ public class ResolveTakenPictureAsyncTask extends AsyncTask<Void, Void, Writable
             elapsedTime = System.nanoTime() - start;
             Log.d("PROFILE", "Compress: " + elapsedTime / 1E6);
 
-            // Write compressed image to file in cache directory
-            String filePath = writeStreamToFile(imageStream);
-            File imageFile = new File(filePath);
-            String fileUri = Uri.fromFile(imageFile).toString();
-            response.putString("uri", fileUri);
-            elapsedTime = System.nanoTime() - start;
-            Log.d("PROFILE", "Write file: " + elapsedTime / 1E6);
+            if (false) { // Don't save file to disk
+                // Write compressed image to file in cache directory
+                String filePath = writeStreamToFile(imageStream);
+                File imageFile = new File(filePath);
+                String fileUri = Uri.fromFile(imageFile).toString();
+                response.putString("uri", fileUri);
+                elapsedTime = System.nanoTime() - start;
+                Log.d("PROFILE", "Write file: " + elapsedTime / 1E6);
+            }
 
             // Write base64-encoded image to the response if requested
             if (mOptions.hasKey("base64") && mOptions.getBoolean("base64")) {

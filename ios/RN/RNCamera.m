@@ -399,27 +399,29 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
 
 - (void)startPhotoSession:(NSDictionary *)options resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject
 {
-    _photoSessionOptions = options;
-    NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
-    if (!self.isPhotoSessionActive) {
-        self.photoSessionActive = YES;
-        dispatch_async(self.sessionQueue, ^{
-            if (self.isPhotoSessionActive) {
-                if (self->_videoDataOutput) {
-                    response[@"status"] = @"New photo session started";
-                    resolve(response);
+    dispatch_async(self.sessionQueue, ^{
+        self->_photoSessionOptions = options;
+        NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
+        if (!self.isPhotoSessionActive) {
+            self.photoSessionActive = YES;
+            dispatch_async(self.sessionQueue, ^{
+                if (self.isPhotoSessionActive) {
+                    if (self->_videoDataOutput) {
+                        response[@"status"] = @"New photo session started";
+                        resolve(response);
+                    } else {
+                        self.photoSessionActive = NO;
+                        reject(@"-1", @"Could not start photo session", nil);
+                    }
                 } else {
-                    self.photoSessionActive = NO;
-                    reject(@"-1", @"Could not start photo session", nil);
+                    reject(@"-1", @"Photo session was cancelled", nil);
                 }
-            } else {
-                reject(@"-1", @"Photo session was cancelled", nil);
-            }
-        });
-    } else {
-        response[@"status"] = @"Photo session already started";
-        resolve(response);
-    }
+            });
+        } else {
+            response[@"status"] = @"Photo session already started";
+            resolve(response);
+        }
+    });
 }
 
 - (void)inactivatePhotoSessionForDuration:(NSTimeInterval)duration
@@ -444,21 +446,23 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
 
 - (void)stopPhotoSession:(NSDictionary *)options resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject
 {
-    NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
-    if (self.isPhotoSessionActive) {
-        self.photoSessionActive = NO;
-        dispatch_async(self.sessionQueue, ^{
-            if (self.isPhotoSessionActive) {
-                reject(@"-1", @"Photo session was restarted", nil);
-            } else {
-                response[@"status"] = @"Photo session stopped";
-                resolve(response);
-            }
-        });
-    } else {
-        response[@"status"] = @"No photo session to stop";
-        resolve(response);
-    }
+    dispatch_async(self.sessionQueue, ^{
+        NSMutableDictionary *response = [[NSMutableDictionary alloc] init];
+        if (self.isPhotoSessionActive) {
+            self.photoSessionActive = NO;
+            dispatch_async(self.sessionQueue, ^{
+                if (self.isPhotoSessionActive) {
+                    reject(@"-1", @"Photo session was restarted", nil);
+                } else {
+                    response[@"status"] = @"Photo session stopped";
+                    resolve(response);
+                }
+            });
+        } else {
+            response[@"status"] = @"No photo session to stop";
+            resolve(response);
+        }
+    });
 }
 
 - (void)captureOutput:(AVCaptureOutput *)output didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection

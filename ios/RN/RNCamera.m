@@ -388,7 +388,10 @@ static NSDictionary *defaultFaceDetectorOptions = nil;
         if (output) {
             AVCaptureConnection *connection = [output connectionWithMediaType:AVMediaTypeVideo];
             if ([connection isVideoOrientationSupported]) {
-                [connection setVideoOrientation:[RNCameraUtils videoOrientationForDeviceOrientation:[[UIDevice currentDevice] orientation]]];
+                UIDeviceOrientation deviceOrientation = [[UIDevice currentDevice] orientation];
+                AVCaptureVideoOrientation orientation = [RNCameraUtils videoOrientationForDeviceOrientation:deviceOrientation];
+                
+                [connection setVideoOrientation:orientation];
             }
         }
     });

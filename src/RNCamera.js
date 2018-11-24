@@ -300,7 +300,14 @@ export default class Camera extends React.Component<PropsType> {
     }
   };
 
-  async componentWillMount() {
+  mounted: boolean = false;
+
+  componentWillUnmount() {
+    this.mounted = false;
+  }
+
+  async componentDidMount() {
+    this.mounted = true;
     const hasVideoAndAudio = this.props.captureAudio;
     const isAuthorized = await requestPermissions(
       hasVideoAndAudio,
@@ -308,7 +315,9 @@ export default class Camera extends React.Component<PropsType> {
       this.props.permissionDialogTitle,
       this.props.permissionDialogMessage
     );
-    this.setState({ isAuthorized, isAuthorizationChecked: true });
+    if (this.mounted) {
+      this.setState({ isAuthorized, isAuthorizationChecked: true });
+    }
   }
 
   render() {

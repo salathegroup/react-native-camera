@@ -194,6 +194,7 @@
 			developmentRegion = English;
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				English,
 				en,
 			);
 			mainGroup = 410701241ACB719800C6AA39;
@@ -218,7 +219,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = $SRCROOT/RemoveFaceDetector.sh;
+			shellScript = "$SRCROOT/RemoveFaceDetector.sh\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
